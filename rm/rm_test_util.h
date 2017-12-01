@@ -185,7 +185,7 @@ void printTupleAfterDrop( const void *buffer, const int tupleSize)
     offset += sizeof(int);
     cout << "nameLength: " << nameLength << endl;
 
-    char name[100];
+    char *name = (char *)malloc(100);
     memcpy(name, (char *)buffer+offset, nameLength);
     name[nameLength] = '\0';
     offset += nameLength;
@@ -215,7 +215,7 @@ void printTupleAfterAdd(const void *buffer, const int tupleSize)
     offset += sizeof(int);
     cout << "nameLength: " << nameLength << endl;
 
-    char name[100];
+    char *name = (char *)malloc(100);
     memcpy(name, (char *)buffer+offset, nameLength);
     name[nameLength] = '\0';
     offset += nameLength;
@@ -333,7 +333,7 @@ RC createLargeTable(const string &tableName)
     vector<Attribute> attrs;
 
     int index = 0;
-    char suffix[100];
+    char *suffix = (char *)malloc(10);
     for(int i = 0; i < 10; i++)
     {
         Attribute attr;
@@ -365,6 +365,8 @@ RC createLargeTable(const string &tableName)
     RC rc = rm->createTable(tableName, attrs);
     assert(rc == success);
     cout << "***** A Large Table: " << tableName << " has created. *****" << endl << endl;
+
+    free(suffix);
 
     return 0;
 }

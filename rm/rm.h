@@ -40,7 +40,13 @@ class RM_IndexScanIterator {
 
   // "key" follows the same format as in IndexManager::insertEntry()
   RC getNextEntry(RID &rid, void *key) {return RM_EOF;};  	// Get next matching entry
+  RC prepareIterator(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *lowKey, const void *highKey, bool lowKeyInclusive, bool highKeyInclusive);
+
   RC close() {return -1;};             			// Terminate index scan
+
+ private:
+  IndexManager *ix;
+  IX_ScanIterator ix_ScanIterator;
 };
 
 
@@ -108,6 +114,7 @@ protected:
 
 private:
   RecordBasedFileManager *rbfm;
+  IndexManager *ix;
   vector<Attribute> tablesDescriptor;
   vector<Attribute> columnsDescriptor;
   vector<Attribute> indexesDescriptor;
@@ -120,8 +127,9 @@ private:
   RC getIndexesDescriptor(vector<Attribute> &indexesDescriptor);
   RC insertTablesRecord(const int &tid, const string &tableName);
   RC insertColumnsRecords(const int &tid, const string &tableName, const vector<Attribute> &attrs);
-  RC insertIndexesRecords(const int &tid, const string &tableName, const string &attributeName);
+  RC insertIndexesRecords(const string &tableName, const string &attributeName);
   RC dataToString(void *data, string &str);
+  RC getAllIndexFiles(const string &tableName, vector<string> &indexFiles);
 };
 
 #endif
