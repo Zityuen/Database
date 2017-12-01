@@ -129,7 +129,10 @@ private:
   RC insertColumnsRecords(const int &tid, const string &tableName, const vector<Attribute> &attrs);
   RC insertIndexesRecords(const string &tableName, const string &attributeName);
   RC dataToString(void *data, string &str);
-  RC getAllIndexFiles(const string &tableName, vector<string> &indexFiles);
+  RC getAllIndexFiles(const string &tableName, vector<vector<string> > &indexFiles);
+  RC matchAttribute(const string &tableName, const string &attributeName, vector<Attribute> &attributeDescriptor, Attribute &attribute);
+  RC matchKey(const vector<Attribute> &descriptor, const Attribute &attribute, const void *data, void *key);
+
 };
 
 #endif

@@ -45,7 +45,7 @@ RC RelationManager::createCatalog()
 
 RC RelationManager::deleteCatalog()
 {
-	if(rbfm->destroyFile("Tables")==0 && rbfm->destroyFile("Columns")==0) {
+	if(rbfm->destroyFile("Tables")==0 && rbfm->destroyFile("Columns")==0 && rbfm->destroyFile("Indexes")) {
 		return 0;
 	}
 	return -1;
@@ -95,6 +95,14 @@ RC RelationManager::deleteTable(const string &tableName)
     			rbfm -> deleteRecord(fileHandle, columnsDescriptor, rid);
     		}
     	}
+
+    	//delete all index files
+    	vector<vector<string> > indexFiles;
+    	getAllIndexFiles(tableName, indexFiles);
+    	for(auto indexFile : indexFiles){
+    		ix->destroyFile(indexFile[2]);
+    	}
+
     	free(data);
     	rbfm_ScanIterator.close();
     	rbfm-> closeFile(fileHandle);
@@ -194,15 +202,45 @@ int RelationManager::getTableId(const string &tableName, RID &rid)
 	return tid;
 }
 
+RC RelationManager::matchKey(const vector<Attribute> &descriptor, const Attribute &attribute, const void *data, void *key){
+	int offset = 0;
+	//skip the nullindicator
+	offset++;
+
+	for(auto item: descriptor){
+		//Wrong !!!!! item.length item.type nullIndicator NULL
+		if(item == attribute) memcpy((char *)key, (char *)data+offset, item.length);
+		else offset += sizeof(item.type) + item.length;
+	}
+}
+
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
 	FileHandle filehandle;
 	vector<Attribute> descriptor;
 
+	vector<vector<string> > indexFiles;
+	getAllIndexFiles(tableName, indexFiles);
+
 	if(!IsSystemTable(tableName)){
 		if(getAttributes(tableName,descriptor) == 0) {
 			if(rbfm->openFile(tableName,filehandle)==0){
 				if(rbfm->insertRecord(filehandle,descriptor,data,rid)==0){
+					//update all index files of this table
+					for(auto indexFile: indexFiles){
+						IXFileHandle ixFileHandle;
+						vector<Attribute> attributeDescriptor;
+						Attribute attribute;
+						void *key = malloc(PAGE_SIZE);
+
+						ix->openFile(indexFile[2], ixFileHandle);
+						matchAttribute(tableName, indexFile[1], attributeDescriptor, attribute);
+						matchKey(descriptor, attribute, data, key);
+						ix->insertEntry(ixFileHandle, attribute, key, rid);
+
+						ix->closeFile(ixFileHandle);
+						free(key);
+					}
 					rbfm->closeFile(filehandle);
 					return 0;
 				}
@@ -218,10 +256,31 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 	FileHandle filehandle;
 	vector<Attribute> descriptor;
 
+	vector<vector<string> >indexFiles;
+	getAllIndexFiles(tableName, indexFiles);
+
 	if(!IsSystemTable(tableName)){
 		if(getAttributes(tableName,descriptor) == 0) {
 			if(rbfm->openFile(tableName,filehandle) == 0){
 				if(rbfm->deleteRecord(filehandle,descriptor,rid) == 0){
+					//update all index files of this table
+					void *data = malloc(PAGE_SIZE);
+					readTuple(tableName, rid, data);
+					for(auto indexFile: indexFiles){
+						IXFileHandle ixFileHandle;
+						vector<Attribute> attributeDescriptor;
+						Attribute attribute;
+						void *key = malloc(PAGE_SIZE);
+
+						ix->openFile(indexFile[2], ixFileHandle);
+						matchAttribute(tableName, indexFile[1], attributeDescriptor, attribute);
+						matchKey(descriptor, attribute, data, key);
+						ix->deleteEntry(ixFileHandle, attribute, key, rid);
+
+						ix->closeFile(ixFileHandle);
+						free(key);
+					}
+					free(data);
 					rbfm->closeFile(filehandle);
 					return 0;
 				}
@@ -237,10 +296,36 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
 	FileHandle filehandle;
 	vector<Attribute> descriptor;
 
+	vector<vector<string> > indexFiles;
+	getAllIndexFiles(tableName, indexFiles);
+
 	if(!IsSystemTable(tableName)){
 		if(getAttributes(tableName,descriptor) == 0) {
 			if(rbfm->openFile(tableName,filehandle)==0){
 				if(rbfm->updateRecord(filehandle,descriptor,data,rid)==0){
+					//update all index files of this table
+					void *dataNeedToDelete = malloc(PAGE_SIZE);
+					readTuple(tableName, rid, dataNeedToDelete);
+
+					for(auto indexFile:indexFiles){
+						IXFileHandle ixFileHandle;
+						vector<Attribute> attributeDescriptor;
+						Attribute attribute;
+						void *key = malloc(PAGE_SIZE);
+
+                        ix->openFile(indexFile[2], ixFileHandle);
+                        matchAttribute(tableName, indexFile[1], attributeDescriptor, attribute);
+                        //delete original data
+                        matchKey(descriptor, attribute, dataNeedToDelete, key);
+                        ix->deleteEntry(ixFileHandle, attribute, key, rid);
+                        //insert new data
+                        matchKey(descriptor, attribute, data, key);
+                        ix->insertEntry(ixFileHandle, attribute, key, rid);
+
+                        ix->closeFile(ixFileHandle);
+                        free(key);
+					}
+					free(dataNeedToDelete);
 					rbfm->closeFile(filehandle);
 					return 0;
 				}
@@ -614,16 +699,21 @@ RC RelationManager::dataToString(void *data, string &str)
 	return 0;
 }
 
-RC RelationManager::getAllIndexFiles(const string &tableName, vector<string> &indexFiles){
+RC RelationManager::getAllIndexFiles(const string &tableName, vector<vector<string> > &indexFiles){
 	FileHandle fileHandle;
 	RID rid;
 
 	void *data = malloc(PAGE_SIZE);
+	int offset = 0;
+	string tmpstr;
 
 	RBFM_ScanIterator rbfm_ScanIterator;
 	rbfm->openFile("Indexes", fileHandle);
 
+
 	vector<string> attributeNames;
+	attributeNames.push_back("table-name");
+	attributeNames.push_back("attribute-name");
 	attributeNames.push_back("file-name");
 
 	//generate formartted input record
@@ -634,7 +724,29 @@ RC RelationManager::getAllIndexFiles(const string &tableName, vector<string> &in
 
 	if(rbfm->scan(fileHandle, indexesDescriptor, "table-name", EQ_OP, tableName_input, attributeNames, rbfm_ScanIterator) == 0){
 		while(rbfm_ScanIterator.getNextRecord(rid, data) != EOF){
-			indexFiles.push_back((char *)data);
+			vector<string> indexFile;
+
+			offset = 0;
+			//skip the nullindicator
+			offset++;
+
+			//convert original varChar data to string
+			dataToString((char *)data+offset, tmpstr);
+			//append table-name in indexFile
+			indexFile.push_back(tmpstr);
+			offset += (sizeof(int) + tmpstr.size());
+
+			//append attribute-name in indexFile
+			dataToString((char *)data+offset, tmpstr);
+			indexFile.push_back(tmpstr);
+			offset += (sizeof(int) + tmpstr.size());
+
+			//append file-name in indexFile
+			dataToString((char *)data+offset, tmpstr);
+			indexFile.push_back(tmpstr);
+			offset += (sizeof(int) + tmpstr.size());
+
+			indexFiles.push_back(indexFile);
 		}
 	}
 	free(data);
@@ -665,20 +777,22 @@ RC RelationManager::createIndex(const string &tableName, const string &attribute
 
 	//init parameters
 	attributeNames.push_back(attributeName);
-	getAttributes(tableName, attributeDescriptor);
-	for(auto item : attributeDescriptor){
-		if(item.name == attributeName) {
-			attribute = item;
-			break;
-		}
-	}
+	matchAttribute(tableName, attributeName, attributeDescriptor, attribute);
+//	getAttributes(tableName, attributeDescriptor);
+//	for(auto item : attributeDescriptor){
+//		if(item.name == attributeName) {
+//			attribute = item;
+//			break;
+//		}
+//	}
 
 	//insert data in index file
 	rbfm->openFile(tableName, fileHandle);
 	ix->openFile(filename, ixfileHandld);
 	if(rbfm->scan(fileHandle, attributeDescriptor, "", NO_OP, "", attributeNames, rbfm_ScanIterator) == 0){
 		while(rbfm_ScanIterator.getNextRecord(rid, data) != EOF){
-			ix->insertEntry(ixfileHandld, attribute, data, rid);
+			//"+1" to skip the nullindicator
+			ix->insertEntry(ixfileHandld, attribute, (char *)data+1, rid);
 		}
 	}
 
@@ -737,13 +851,14 @@ RC RelationManager::indexScan(const string &tableName,
 	//init ixfileHandle and attribute
 	string fileName = tableName + "." + attributeName;
 	ix->openFile(fileName, ixfileHandle);
-	getAttributes(tableName, attributeDescriptor);
-	for(auto item : attributeDescriptor){
-		if(item.name == attributeName) {
-			attribute = item;
-			break;
-		}
-	}
+	matchAttribute(tableName, attributeName, attributeDescriptor, attribute);
+//	getAttributes(tableName, attributeDescriptor);
+//	for(auto item : attributeDescriptor){
+//		if(item.name == attributeName) {
+//			attribute = item;
+//			break;
+//		}
+//	}
 
 	rm_IndexScanIterator.prepareIterator(ixfileHandle, attribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive);
 	ix->closeFile(ixfileHandle);
@@ -763,3 +878,12 @@ RC RM_IndexScanIterator::close() {
 	return ix_ScanIterator.close();
 }
 
+RC RelationManager::matchAttribute(const string &tableName, const string &attributeName, vector<Attribute> &attributeDescriptor, Attribute &attribute){
+	getAttributes(tableName, attributeDescriptor);
+	for(auto item : attributeDescriptor){
+		if(item.name == attributeName) {
+			attribute = item;
+			break;
+		}
+	}
+}
