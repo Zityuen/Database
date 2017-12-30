@@ -20,13 +20,5 @@
     - In the "Tables" table, "table-id", "table-name" and "file-name" will be recorded.
     - In the "Coloumns" table, each table's attribute will be recorded.
     - In the "Indexes" table, "tablename", "attributename" and "filename" will be recorded.
-- Block Nested Loop Join:  
-    initially, load the first block  
-     if getNextTuple(rightIn) == QE_EOF  
-        if loadNextBlock(leftIn) == QE_EOF
-            return -1
-    end if
-    loadNextBlock (from leftIn) to create a hash table
-    fetch key from right tuple, then mapping to hash table
-    if a list of tuples is found, then join each of these left tuples with the right one
-end if
+- Implemented Block Nested Loop Join and Index Nested Loop Join.
+- CreateIndex: First call createfile function in ix to create index file and insert record in "Indexes" table. Call openfile function in rm to open the "tableName" table, then use scan and getNext to get each record in the table. Call insertTuple function in ix to insert entry in the index file until scanning finish.
