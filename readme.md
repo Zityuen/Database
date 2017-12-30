@@ -11,8 +11,20 @@
 - Internal Record Format: If the length of format record is no less than sizeof(RID), record format includes fieldpointers and fields. Each of fieldpointers use short int to store the offset pointing to the end position of corresponding field.
 - Page Format: Put records from the beginning of the page and set the directory from the end of the page. The directory includes two structs. One is PageInfo, which includes recordofsize and numofslots used to get the freespace and the number of the slots. Another is recordoffset, which consists of slot directory, as well as includes the position of record and the length of record.
 - Meta-data page in Index File: Compared to previous meta-data, added a rootNodePage to indicate the pageNum of the root node.
-- Index Entry Format: Internal-page entry design: <original_Key + RID> + pageid; Leaf-page design: <original_Key + RID>;
+- Index Entry Format: 
+    - Internal-page entry design: <original_Key + RID> + pageid
+    - Leaf-page design: <original_Key + RID>
 - Catalog Information about Index: 
     - In the "Tables" table, "table-id", "table-name" and "file-name" will be recorded.
     - In the "Coloumns" table, each table's attribute will be recorded.
     - In the "Indexes" table, "tablename", "attributename" and "filename" will be recorded.
+- Block Nested Loop Join:
+>initially, load the first block 
+>if getNextTuple(rightIn) == QE_EOF
+    >>if loadNextBlock(leftIn) == QE_EOF
+        return -1
+    end if
+    loadNextBlock (from leftIn) to create a hash table
+    fetch key from right tuple, then mapping to hash table
+    if a list of tuples is found, then join each of these left tuples with the right one
+end if
