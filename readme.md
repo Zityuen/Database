@@ -21,8 +21,8 @@
 - Block Nested Loop Join:
     initially, load the first block 
     if getNextTuple(rightIn) == QE_EOF
-    >>if loadNextBlock(leftIn) == QE_EOF
-        return -1
+        if loadNextBlock(leftIn) == QE_EOF
+            return -1
     end if
     loadNextBlock (from leftIn) to create a hash table
     fetch key from right tuple, then mapping to hash table
