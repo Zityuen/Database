@@ -20,7 +20,7 @@
     - In the "Indexes" table, "tablename", "attributename" and "filename" will be recorded.
 - Block Nested Loop Join:  
     initially, load the first block  
-    if getNextTuple(rightIn) == QE_EOF
+    if getNextTuple(rightIn) == QE_EOF  
         if loadNextBlock(leftIn) == QE_EOF
             return -1
     end if
