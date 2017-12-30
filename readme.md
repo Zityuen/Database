@@ -19,7 +19,7 @@
     - In the "Coloumns" table, each table's attribute will be recorded.
     - In the "Indexes" table, "tablename", "attributename" and "filename" will be recorded.
 - Block Nested Loop Join:  
-    initially, load the first block  
+    <p>  initially, load the first block</p>  
      if getNextTuple(rightIn) == QE_EOF  
         if loadNextBlock(leftIn) == QE_EOF
             return -1
