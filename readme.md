@@ -13,6 +13,6 @@
 - Meta-data page in Index File: Compared to previous meta-data, added a rootNodePage to indicate the pageNum of the root node.
 - Index Entry Format: Internal-page entry design: <original_Key + RID> + pageid; Leaf-page design: <original_Key + RID>;
 - Catalog Information about Index: 
-    In the "Tables" table, "table-id", "table-name" and "file-name" will be recorded.
-    In the "Coloumns" table, each table's attribute will be recorded.
-    In the "Indexes" table, "tablename", "attributename" and "filename" will be recorded.
+    - In the "Tables" table, "table-id", "table-name" and "file-name" will be recorded.
+    - In the "Coloumns" table, each table's attribute will be recorded.
+    - In the "Indexes" table, "tablename", "attributename" and "filename" will be recorded.
